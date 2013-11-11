@@ -112,7 +112,7 @@ fmt_argv(char **argv, char *cmd, size_t maxlen)
 
 	if (argv == NULL || argv[0] == NULL) {
 		if (cmd == NULL)
-			return ("");
+			return strdup("");
 		ap = NULL;
 		len = maxlen + 3;
 	} else {

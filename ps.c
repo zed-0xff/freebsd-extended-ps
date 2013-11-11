@@ -656,8 +656,10 @@ static int show_processes(){
 	 * print header
 	 */
 	if(show_header) printheader();
-	if (nkept == 0)
+	if (nkept == 0){
+		free(kinfo);
 		return nkept;
+	}
 
 	/*
 	 * sort proc list
@@ -686,8 +688,11 @@ static int show_processes(){
 			lineno = 0;
 		}
 	}
-	for (i = 0; i < nkept; i++)
+	for (i = 0; i < nkept; i++){
 		free(kinfo[i].ki_d.prefix);
+		free(kinfo[i].ki_args);
+		free(kinfo[i].ki_env);
+	}
 	free(kinfo);
 
 	return nkept;
@@ -1208,8 +1213,7 @@ saveuser(KINFO *ki)
 		if (ki->ki_p->ki_stat == SZOMB)
 			ki->ki_args = strdup("<defunct>");
 		else if (UREADOK(ki) || (ki->ki_p->ki_args != NULL))
-			ki->ki_args = strdup(fmt(kvm_getargv, ki,
-			    ki->ki_p->ki_comm, MAXCOMLEN));
+			ki->ki_args = fmt(kvm_getargv, ki, ki->ki_p->ki_comm, MAXCOMLEN);
 		else
 			asprintf(&ki->ki_args, "(%s)", ki->ki_p->ki_comm);
 		if (ki->ki_args == NULL)
@@ -1219,8 +1223,7 @@ saveuser(KINFO *ki)
 	}
 	if (needenv) {
 		if (UREADOK(ki))
-			ki->ki_env = strdup(fmt(kvm_getenvv, ki,
-			    (char *)NULL, 0));
+			ki->ki_env = fmt(kvm_getenvv, ki, (char *)NULL, 0);
 		else
 			ki->ki_env = strdup("()");
 		if (ki->ki_env == NULL)
