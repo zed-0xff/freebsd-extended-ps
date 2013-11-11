@@ -554,6 +554,7 @@ main(int argc, char *argv[])
 		if( do_loadavg ) show_loadavg();
 		i = show_processes();
 		if( do_repeat ){
+			fflush(stdout);
 			usleep( delay );
 		} else {
 			// keep old behaviour: return errorlevel 1 if no matching processes found
