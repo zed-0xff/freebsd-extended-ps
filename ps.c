@@ -1348,10 +1348,12 @@ usage(void)
 {
 #define	SINGLE_OPTS	"[-aCcde" OPT_LAZY_f "HhjlmrSTuvwXxZ]"
 
-	(void)fprintf(stderr, "%s\n%s\n%s\n%s\n",
+	(void)fprintf(stderr, "%s\n%s\n%s\n%s\n%s\n",
 	    "usage: ps " SINGLE_OPTS " [-O fmt | -o fmt] [-G gid[,gid...]]",
 	    "          [-M core] [-N system]",
 	    "          [-p pid[,pid...]] [-t tty[,tty...]] [-U user[,user...]]",
-	    "       ps [-L]");
+	    "       ps [-L]",
+		"       ps [--no-header] [--repeat [n]] --delay ss[.ms]"
+		);
 	exit(1);
 }
