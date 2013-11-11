@@ -74,6 +74,7 @@ __FBSDID("$FreeBSD: src/bin/ps/ps.c,v 1.117.2.2.4.1 2010/12/21 17:09:25 kensmith
 #include <getopt.h>
 
 #include "ps.h"
+#include "loadavg.h"
 
 #define	_PATH_PTS	"/dev/pts/"
 
@@ -171,13 +172,15 @@ static char Zfmt[] = "label";
 enum {
 	LONGOPT_NO_HEADER = 1,
 	LONGOPT_REPEAT,
-	LONGOPT_DELAY
+	LONGOPT_DELAY,
+	LONGOPT_LOADAVG
 };
 
 static struct option longopts[] = {
 	 { "no-header", no_argument, 		NULL,	LONGOPT_NO_HEADER },
 	 { "repeat", 	no_argument,		NULL,	LONGOPT_REPEAT },
 	 { "delay", 	required_argument,	NULL,	LONGOPT_DELAY },
+	 { "loadavg", 	no_argument,		NULL,	LONGOPT_LOADAVG },
 	 { NULL,        0,           		NULL,	0 }
 };
 
@@ -187,7 +190,7 @@ static struct option longopts[] = {
 struct listinfo gidlist, pgrplist, pidlist;
 struct listinfo ruidlist, sesslist, ttylist, uidlist;
 int prtheader, what, xkeep, flag, nselectors, descendancy;
-int show_header = 1, do_repeat = 0;
+int show_header = 1, do_repeat = 0, do_loadavg = 0;
 
 int
 main(int argc, char *argv[])
@@ -431,6 +434,9 @@ main(int argc, char *argv[])
 		case LONGOPT_DELAY:
 			delay = atof(optarg)*1000000;
 			break;
+		case LONGOPT_LOADAVG:
+			do_loadavg = 1;
+			break;
 		case '?':
 		default:
 			usage();
@@ -533,6 +539,7 @@ main(int argc, char *argv[])
 	}
 
 	while( 1 ){
+		if( do_loadavg ) show_loadavg();
 		i = show_processes();
 		if( do_repeat ){
 			usleep( delay );
@@ -1392,7 +1399,7 @@ usage(void)
 	    "          [-M core] [-N system]",
 	    "          [-p pid[,pid...]] [-t tty[,tty...]] [-U user[,user...]]",
 	    "       ps [-L]",
-		"       ps [--no-header] [--repeat] --delay ss[.ms]"
+		"       ps [--no-header] [--repeat] --delay ss[.ms] [--loadavg]"
 		);
 	exit(1);
 }
