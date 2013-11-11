@@ -150,7 +150,7 @@ static void	 free_list(struct listinfo *);
 static void	 init_list(struct listinfo *, addelem_rtn, int, const char *);
 static char	*kludge_oldps_options(const char *, char *, const char *);
 static int	 pscomp(const void *, const void *);
-static void	 saveuser(KINFO *);
+static int	 saveuser(KINFO *);
 static void	 scanvars(void);
 static void	 sizevars(void);
 static void	 usage(void);
@@ -173,7 +173,11 @@ enum {
 	LONGOPT_NO_HEADER = 1,
 	LONGOPT_REPEAT,
 	LONGOPT_DELAY,
-	LONGOPT_LOADAVG
+	LONGOPT_LOADAVG,
+	// minimal pgrep-like process selection syntax:
+	// "--pgrep foo" will select all processes with substring "foo"
+	// "--pgrep ^ps" will select all processes which name starts with "ps"
+	LONGOPT_PGREP
 };
 
 static struct option longopts[] = {
@@ -181,6 +185,7 @@ static struct option longopts[] = {
 	 { "repeat", 	no_argument,		NULL,	LONGOPT_REPEAT },
 	 { "delay", 	required_argument,	NULL,	LONGOPT_DELAY },
 	 { "loadavg", 	no_argument,		NULL,	LONGOPT_LOADAVG },
+	 { "pgrep", 	required_argument,	NULL,	LONGOPT_PGREP },
 	 { NULL,        0,           		NULL,	0 }
 };
 
@@ -191,6 +196,8 @@ struct listinfo gidlist, pgrplist, pidlist;
 struct listinfo ruidlist, sesslist, ttylist, uidlist;
 int prtheader, what, xkeep, flag, nselectors, descendancy;
 int show_header = 1, do_repeat = 0, do_loadavg = 0;
+char* pgrep = NULL;
+int pgrep_len = 0;
 
 int
 main(int argc, char *argv[])
@@ -437,6 +444,11 @@ main(int argc, char *argv[])
 		case LONGOPT_LOADAVG:
 			do_loadavg = 1;
 			break;
+		case LONGOPT_PGREP:
+			pgrep = strdup(optarg);
+			pgrep_len = strlen(pgrep);
+			needcomm = 1;
+			break;
 		case '?':
 		default:
 			usage();
@@ -562,7 +574,7 @@ main(int argc, char *argv[])
 }
 
 static int show_processes(){
-	int i, nentries, nkept, elem, lineno;
+	int i, nentries, nkept, elem, lineno, keep2;
 	struct kinfo_proc *kp;
 	KINFO *next_KINFO;
 	struct varent *vent;
@@ -646,12 +658,14 @@ static int show_processes(){
 			next_KINFO->ki_p = kp;
 			next_KINFO->ki_d.level = 0;
 			next_KINFO->ki_d.prefix = NULL;
+			if (needuser){
+				if(!saveuser(next_KINFO))
+					continue; // not matched by pgrep
+			}
 			next_KINFO->ki_pcpu = getpcpu(next_KINFO);
 			if (sortby == SORTMEM)
 				next_KINFO->ki_memsize = kp->ki_tsize +
 				    kp->ki_dsize + kp->ki_ssize;
-			if (needuser)
-				saveuser(next_KINFO);
 			dynsizevars(next_KINFO);
 			nkept++;
 		}
@@ -1199,7 +1213,7 @@ fmt(char **(*fn)(kvm_t *, const struct kinfo_proc *, int), KINFO *ki,
 
 #define UREADOK(ki)	(forceuread || (ki->ki_p->ki_flag & P_INMEM))
 
-static void
+static int
 saveuser(KINFO *ki)
 {
 
@@ -1225,6 +1239,18 @@ saveuser(KINFO *ki)
 			asprintf(&ki->ki_args, "(%s)", ki->ki_p->ki_comm);
 		if (ki->ki_args == NULL)
 			errx(1, "malloc failed");
+		if( pgrep ){
+			int match = 0;
+			if( *pgrep == '^' ){
+				match = (0 == strncmp(ki->ki_args, pgrep+1, pgrep_len-1));
+			} else {
+				match = (NULL != strstr(ki->ki_args, pgrep));
+			}
+			if( !match ){
+				free(ki->ki_args);
+				return 0;
+			}
+		}
 	} else {
 		ki->ki_args = NULL;
 	}
@@ -1238,6 +1264,7 @@ saveuser(KINFO *ki)
 	} else {
 		ki->ki_env = NULL;
 	}
+	return 1;
 }
 
 /* A macro used to improve the readability of pscomp(). */
