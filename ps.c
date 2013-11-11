@@ -153,6 +153,7 @@ static void	 saveuser(KINFO *);
 static void	 scanvars(void);
 static void	 sizevars(void);
 static void	 usage(void);
+static int	 show_processes(void);
 
 static char dfmt[] = "pid,tt,state,time,command";
 static char jfmt[] = "user,pid,ppid,pgid,sid,jobc,state,tt,time,command";
@@ -168,30 +169,36 @@ static char Zfmt[] = "label";
 #define	PS_ARGS	"AaCcde" OPT_LAZY_f "G:gHhjLlM:mN:O:o:p:rSTt:U:uvwXxZ"
 
 enum {
-	LONGOPT_NO_HEADER = 1
+	LONGOPT_NO_HEADER = 1,
+	LONGOPT_REPEAT,
+	LONGOPT_DELAY
 };
 
 static struct option longopts[] = {
-	 { "no-header", no_argument, NULL,	LONGOPT_NO_HEADER },
-	 { NULL,        0,           NULL,	0 }
+	 { "no-header", no_argument, 		NULL,	LONGOPT_NO_HEADER },
+	 { "repeat", 	no_argument,		NULL,	LONGOPT_REPEAT },
+	 { "delay", 	required_argument,	NULL,	LONGOPT_DELAY },
+	 { NULL,        0,           		NULL,	0 }
 };
+
+// default delay for --repeat option, in microseconds
+#define DEFAULT_DELAY (1*1000*1000)
+
+struct listinfo gidlist, pgrplist, pidlist;
+struct listinfo ruidlist, sesslist, ttylist, uidlist;
+int prtheader, what, xkeep, flag, nselectors, descendancy;
+int show_header = 1, do_repeat = 0;
 
 int
 main(int argc, char *argv[])
 {
-	struct listinfo gidlist, pgrplist, pidlist;
-	struct listinfo ruidlist, sesslist, ttylist, uidlist;
-	struct kinfo_proc *kp;
-	KINFO *next_KINFO;
-	struct varent *vent;
 	struct winsize ws;
 	const char *nlistf, *memf;
 	char *cols;
-	int all, ch, elem, flag, _fmt, i, lineno;
-	int descendancy, nentries, nkept, nselectors;
-	int prtheader, wflag, what, xkeep, xkeep_implied;
+	int all, ch, elem, _fmt, i;
+	int wflag, xkeep_implied;
 	char errbuf[_POSIX2_LINE_MAX];
-	int show_header = 1;
+	useconds_t delay = DEFAULT_DELAY;
 
 	(void) setlocale(LC_ALL, "");
 	time(&now);			/* Used by routines in print.c. */
@@ -418,6 +425,12 @@ main(int argc, char *argv[])
 		case LONGOPT_NO_HEADER:
 			show_header = 0;
 			break;
+		case LONGOPT_REPEAT:
+			do_repeat = 1;
+			break;
+		case LONGOPT_DELAY:
+			delay = atof(optarg)*1000000;
+			break;
 		case '?':
 		default:
 			usage();
@@ -519,6 +532,36 @@ main(int argc, char *argv[])
 		}
 	}
 
+	while( 1 ){
+		i = show_processes();
+		if( do_repeat ){
+			usleep( delay );
+		} else {
+			// keep old behaviour: return errorlevel 1 if no matching processes found
+			if( i == 0 ) eval = 1;
+			break;
+		}
+	}
+
+	free_list(&gidlist);
+	free_list(&pidlist);
+	free_list(&pgrplist);
+	free_list(&ruidlist);
+	free_list(&sesslist);
+	free_list(&ttylist);
+	free_list(&uidlist);
+
+	exit(eval);
+}
+
+static int show_processes(){
+	int i, nentries, nkept, elem, lineno;
+	struct kinfo_proc *kp;
+	KINFO *next_KINFO;
+	struct varent *vent;
+
+	totwidth = 0;
+
 	/*
 	 * select procs
 	 */
@@ -614,7 +657,7 @@ main(int argc, char *argv[])
 	 */
 	if(show_header) printheader();
 	if (nkept == 0)
-		exit(1);
+		return nkept;
 
 	/*
 	 * sort proc list
@@ -643,18 +686,11 @@ main(int argc, char *argv[])
 			lineno = 0;
 		}
 	}
-	free_list(&gidlist);
-	free_list(&pidlist);
-	free_list(&pgrplist);
-	free_list(&ruidlist);
-	free_list(&sesslist);
-	free_list(&ttylist);
-	free_list(&uidlist);
 	for (i = 0; i < nkept; i++)
 		free(kinfo[i].ki_d.prefix);
 	free(kinfo);
 
-	exit(eval);
+	return nkept;
 }
 
 static int
@@ -1353,7 +1389,7 @@ usage(void)
 	    "          [-M core] [-N system]",
 	    "          [-p pid[,pid...]] [-t tty[,tty...]] [-U user[,user...]]",
 	    "       ps [-L]",
-		"       ps [--no-header] [--repeat [n]] --delay ss[.ms]"
+		"       ps [--no-header] [--repeat] --delay ss[.ms]"
 		);
 	exit(1);
 }
