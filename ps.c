@@ -71,6 +71,7 @@ __FBSDID("$FreeBSD: src/bin/ps/ps.c,v 1.117.2.2.4.1 2010/12/21 17:09:25 kensmith
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <getopt.h>
 
 #include "ps.h"
 
@@ -166,6 +167,15 @@ static char Zfmt[] = "label";
 
 #define	PS_ARGS	"AaCcde" OPT_LAZY_f "G:gHhjLlM:mN:O:o:p:rSTt:U:uvwXxZ"
 
+enum {
+	LONGOPT_NO_HEADER = 1
+};
+
+static struct option longopts[] = {
+	 { "no-header", no_argument, NULL,	LONGOPT_NO_HEADER },
+	 { NULL,        0,           NULL,	0 }
+};
+
 int
 main(int argc, char *argv[])
 {
@@ -181,6 +191,7 @@ main(int argc, char *argv[])
 	int descendancy, nentries, nkept, nselectors;
 	int prtheader, wflag, what, xkeep, xkeep_implied;
 	char errbuf[_POSIX2_LINE_MAX];
+	int show_header = 1;
 
 	(void) setlocale(LC_ALL, "");
 	time(&now);			/* Used by routines in print.c. */
@@ -214,7 +225,7 @@ main(int argc, char *argv[])
 	init_list(&uidlist, addelem_uid, sizeof(uid_t), "user");
 	memf = _PATH_DEVNULL;
 	nlistf = NULL;
-	while ((ch = getopt(argc, argv, PS_ARGS)) != -1)
+	while ((ch = getopt_long(argc, argv, PS_ARGS, longopts, NULL)) != -1)
 		switch (ch) {
 		case 'A':
 			/*
@@ -403,6 +414,9 @@ main(int argc, char *argv[])
 		case 'Z':
 			parsefmt(Zfmt, 0);
 			Zfmt[0] = '\0';
+			break;
+		case LONGOPT_NO_HEADER:
+			show_header = 0;
 			break;
 		case '?':
 		default:
@@ -598,7 +612,7 @@ main(int argc, char *argv[])
 	/*
 	 * print header
 	 */
-	printheader();
+	if(show_header) printheader();
 	if (nkept == 0)
 		exit(1);
 
